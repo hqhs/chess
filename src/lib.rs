@@ -163,12 +163,13 @@ fn redraw(game: &mut Game, frame: &mut Frame) {
     let iad = &game.iad;
     let view = &mut frame.view;
     let encoder = &mut frame.encoder;
-    // next thing: make color configurable with egui
-    let background_color = wgpu::Color {
-        r: 0.1,
-        g: 0.2,
-        b: 0.3,
-        a: 1.0,
+    // NOTE: probably would be a function
+    let bg = game.background_color;
+    let bg = wgpu::Color {
+        r: bg[0].into(),
+        g: bg[1].into(),
+        b: bg[2].into(),
+        a: bg[3].into(),
     };
 
     let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -177,7 +178,7 @@ fn redraw(game: &mut Game, frame: &mut Frame) {
             view: &view,
             resolve_target: None,
             ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(background_color),
+                load: wgpu::LoadOp::Clear(bg),
                 store: wgpu::StoreOp::Store,
             },
         })],
@@ -197,6 +198,28 @@ fn redraw_ui(window: &Window, game: &mut Game, frame: &mut Frame) {
         size_in_pixels: [size.width, size.height],
         pixels_per_point,
     };
+    let egui_lambda = |cx: &egui::Context| {
+        egui::Window::new("Settings")
+            .resizable(true)
+            .vscroll(true)
+            .default_open(true)
+            .show(&cx, |mut ui| {
+                ui.label("Window!");
+                if ui.button("Click me!").clicked() {
+                    log::info!("button clicked");
+                }
+
+                ui.label("Background color: ");
+                if ui
+                    .color_edit_button_rgba_unmultiplied(&mut game.background_color)
+                    .changed()
+                {
+                    log::info!("background color changed");
+                }
+
+                // proto_scene.egui(ui);
+            });
+    };
     game.egui_renderer.draw(
         &game.iad.device,
         &game.iad.queue,
@@ -204,25 +227,11 @@ fn redraw_ui(window: &Window, game: &mut Game, frame: &mut Frame) {
         &window,
         &view,
         screen_descriptor,
-        |ui| {
-            egui::Window::new("Settings")
-                .resizable(true)
-                .vscroll(true)
-                .default_open(true)
-                .show(&ui, |mut ui| {
-                    ui.label("Window!");
-                    ui.label("Window!");
-                    ui.label("Window!");
-                    ui.label("Window!");
-                    if ui.button("Click me!").clicked() {
-                        log::info!("button clicked");
-                    }
-
-                    // proto_scene.egui(ui);
-                });
-        },
+        egui_lambda,
     );
 }
+
+fn populate_ui_elements(cx: &egui::Context, game: &mut Game) {}
 
 fn ced(label: Option<&'static str>) -> wgpu::CommandEncoderDescriptor {
     wgpu::CommandEncoderDescriptor { label }
