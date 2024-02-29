@@ -10,12 +10,11 @@ crate-type = ["lib", "cdylib"]
 name = "chess"
 path = "bin/game.rs"
 
+[dependencies.discipline]
+path = "../discipline/discipline"
+
 [dependencies]
-wgpu = "0.19.0"
-# logging
 env_logger = { version = "0.10", default-features = false, features = ["auto-color", "humantime"] }
-# Linear algebra library
-glam = "0.24"
 # gltf model loading
 gltf = "1.4"
 # Logging infrastructure
