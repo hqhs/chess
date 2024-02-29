@@ -27,8 +27,11 @@ profiling = "1"
 pollster = "0.3"
 cfg-if = "1.0.0"
 winit = "0.29.11"
-# TODO: enable only in debug builds
+# TODO: enable backtrace only in debug builds
 anyhow = { version = "1.0.80", features = ["backtrace"] }
+egui = "0.26.2"
+egui-wgpu = "0.26.2"
+egui-winit = "0.26.2"
 
 [dev-dependencies]
 # rend3-test = "^0.3.0"
