@@ -4,6 +4,7 @@ use ui::EguiRenderer;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoopWindowTarget,
+    window::Window,
 };
 
 use discipline::{glam, setup, wgpu};
@@ -23,49 +24,6 @@ struct Game {
     egui_renderer: ui::EguiRenderer,
 
     background_color: [f32; 4],
-}
-
-struct UI {
-    renderer: egui_wgpu::Renderer,
-    screen_descriptor: egui_wgpu::ScreenDescriptor,
-    egui_cx: egui::Context,
-    platform: egui_winit::State,
-    clipped_meshes: Vec<egui::ClippedPrimitive>,
-}
-
-impl UI {
-    fn new(
-        window: Arc<winit::window::Window>,
-        device: &wgpu::Device,
-        format: wgpu::TextureFormat,
-    ) -> Self {
-        let msaa_samples = 1u32;
-        let output_depth_format: Option<wgpu::TextureFormat> = None;
-        let renderer = egui_wgpu::Renderer::new(device, format, output_depth_format, msaa_samples);
-        let size = window.inner_size();
-        let pixels_per_point = window.scale_factor() as f32;
-        let screen_descriptor = egui_wgpu::ScreenDescriptor {
-            size_in_pixels: [size.width, size.height],
-            pixels_per_point,
-        };
-        let egui_cx = egui::Context::default();
-        let max_texture_side = None;
-        let platform = egui_winit::State::new(
-            egui_cx.clone(),
-            egui::ViewportId::default(),
-            &window,
-            Some(window.scale_factor() as f32),
-            max_texture_side,
-        );
-        let clipped_meshes = vec![];
-        Self {
-            renderer,
-            screen_descriptor,
-            egui_cx,
-            platform,
-            clipped_meshes,
-        }
-    }
 }
 
 pub async fn run() -> anyhow::Result<()> {
@@ -116,12 +74,18 @@ pub async fn run() -> anyhow::Result<()> {
     Ok(())
 }
 
+struct Frame {
+    encoder: wgpu::CommandEncoder,
+    surface_texture: wgpu::SurfaceTexture,
+    view: wgpu::TextureView,
+}
+
 fn process_event(
     event: Event<()>,
     event_loop_window_target: &winit::event_loop::EventLoopWindowTarget<()>,
     game: &mut Game,
     surface: &wgpu::Surface,
-    window: Arc<winit::window::Window>,
+    window: Arc<Window>,
 ) -> anyhow::Result<()> {
     if let Event::WindowEvent { ref event, .. } = event {
         let response = game.egui_renderer.handle_input(&window, event);
@@ -163,26 +127,42 @@ fn process_event(
             event: WindowEvent::RedrawRequested,
             ..
         } => {
-            let frame = match surface.get_current_texture() {
+            let surface_texture = match surface.get_current_texture() {
                 Ok(frame) => frame,
                 Err(e) => {
                     log::error!("failed to get surface texture to draw next frame: {}", e);
                     return Ok(());
                 }
             };
-            redraw(window, game, &frame);
-            frame.present();
+            let texture_descriptor = wgpu::TextureViewDescriptor::default();
+            let view = surface_texture.texture.create_view(&texture_descriptor);
+            let encoder = game.iad.device.create_command_encoder(&ced(None));
+            let mut frame = Frame {
+                encoder,
+                surface_texture,
+                view,
+            };
+
+            redraw(game, &mut frame);
+            redraw_ui(&window, game, &mut frame);
+
+            let Frame {
+                encoder,
+                surface_texture,
+                ..
+            } = frame;
+            game.iad.queue.submit(Some(encoder.finish()));
+            surface_texture.present();
         }
         _ => {}
     };
     Ok(())
 }
 
-fn redraw(window: Arc<winit::window::Window>, game: &mut Game, frame: &wgpu::SurfaceTexture) {
-    let texture_descriptor = wgpu::TextureViewDescriptor::default();
-    let view = frame.texture.create_view(&texture_descriptor);
+fn redraw(game: &mut Game, frame: &mut Frame) {
     let iad = &game.iad;
-    let mut encoder = iad.device.create_command_encoder(&ced(None));
+    let view = &mut frame.view;
+    let encoder = &mut frame.encoder;
     // next thing: make color configurable with egui
     let background_color = wgpu::Color {
         r: 0.1,
@@ -191,12 +171,6 @@ fn redraw(window: Arc<winit::window::Window>, game: &mut Game, frame: &wgpu::Sur
         a: 1.0,
     };
 
-    let size = window.inner_size();
-    let pixels_per_point = window.scale_factor() as f32;
-    let screen_descriptor = egui_wgpu::ScreenDescriptor {
-        size_in_pixels: [size.width, size.height],
-        pixels_per_point,
-    };
     let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -213,11 +187,20 @@ fn redraw(window: Arc<winit::window::Window>, game: &mut Game, frame: &wgpu::Sur
     });
 
     drop(rpass);
+}
 
+fn redraw_ui(window: &Window, game: &mut Game, frame: &mut Frame) {
+    let view = &frame.view;
+    let size = window.inner_size();
+    let pixels_per_point = window.scale_factor() as f32;
+    let screen_descriptor = egui_wgpu::ScreenDescriptor {
+        size_in_pixels: [size.width, size.height],
+        pixels_per_point,
+    };
     game.egui_renderer.draw(
         &game.iad.device,
         &game.iad.queue,
-        &mut encoder,
+        &mut frame.encoder,
         &window,
         &view,
         screen_descriptor,
@@ -239,8 +222,6 @@ fn redraw(window: Arc<winit::window::Window>, game: &mut Game, frame: &wgpu::Sur
                 });
         },
     );
-
-    iad.queue.submit(Some(encoder.finish()));
 }
 
 fn ced(label: Option<&'static str>) -> wgpu::CommandEncoderDescriptor {
