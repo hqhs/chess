@@ -41,7 +41,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     let game = Game { iad };
 
-    run_event_loop(event_loop, game, &surface)?;
+    run_event_loop(event_loop, game, &surface, window)?;
 
     Ok(())
 }
@@ -50,13 +50,35 @@ fn run_event_loop(
     event_loop: winit::event_loop::EventLoop<()>,
     mut game: Game,
     surface: &wgpu::Surface,
+    window: Arc<winit::window::Window>,
 ) -> anyhow::Result<()> {
     event_loop.run(move |event, event_loop_window_target| match event {
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
             ..
         } => event_loop_window_target.exit(),
-        // next: resizing
+        Event::WindowEvent {
+            event: WindowEvent::Resized(new_size),
+            ..
+        } => {
+            let caps = surface.get_capabilities(&game.iad.adapter);
+            let preferred_format = caps.formats[0];
+            setup::configure_surface(
+                surface,
+                &game.iad.device,
+                preferred_format,
+                glam::UVec2::new(new_size.width, new_size.height),
+                wgpu::PresentMode::Fifo,
+            );
+
+            window.request_redraw();
+        }
+        Event::WindowEvent {
+            event: WindowEvent::ScaleFactorChanged { .. },
+            ..
+        } => {
+            log::debug!("Scale factor changed");
+        }
         Event::WindowEvent {
             event: WindowEvent::RedrawRequested,
             ..
