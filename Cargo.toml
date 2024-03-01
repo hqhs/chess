@@ -32,6 +32,10 @@ anyhow = { version = "1.0.80", features = ["backtrace"] }
 egui = "0.26.2"
 egui-wgpu = "0.26.2"
 egui-winit = "0.26.2"
+bytemuck = "1.14.3"
+
+# debug
+glam = { version = "0.25.0", features = ["bytemuck"] }
 
 [dev-dependencies]
 # rend3-test = "^0.3.0"
