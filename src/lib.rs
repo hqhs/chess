@@ -9,7 +9,7 @@ use winit::{
 };
 
 use discipline::{
-    nalgebra as na, setup,
+    glam, setup,
     wgpu::{self, util::DeviceExt},
 };
 
@@ -31,6 +31,25 @@ struct Game {
 
     background_color: [f32; 4],
     cube: Cube,
+    camera: Camera,
+}
+
+struct Camera {
+    view: glam::Mat4,
+}
+
+impl Camera {
+    fn new(aspect_ratio: f32) -> Self {
+        let projection =
+            glam::Mat4::perspective_rh(std::f32::consts::FRAC_PI_4, aspect_ratio, 1.0, 10.0);
+        let view = glam::Mat4::look_at_rh(
+            glam::Vec3::new(1.5f32, -5.0, 3.0),
+            glam::Vec3::ZERO,
+            glam::Vec3::Z,
+        );
+        let view = projection * view;
+        Self { view }
+    }
 }
 
 pub async fn run() -> anyhow::Result<()> {
@@ -49,23 +68,27 @@ pub async fn run() -> anyhow::Result<()> {
     let caps = surface.get_capabilities(&iad.adapter);
     let preferred_format = caps.formats[0];
 
+    let size_vec = glam::UVec2::new(size.width, size.height);
     setup::configure_surface(
         &surface,
         &iad.device,
         preferred_format,
-        na::Vector2::new(size.width, size.height),
+        size_vec,
         wgpu::PresentMode::Fifo,
     );
 
     // let ui = UI::new(window.clone(), &iad.device, preferred_format);
     let egui_renderer = EguiRenderer::new(&iad.device, preferred_format, None, 1, &window);
     let background_color = [0.1, 0.2, 0.3, 1.0];
-    let cube = Cube::new(preferred_format, &iad.device, &iad.queue);
+    let aspect_ratio = size_vec.x as f32 / size_vec.y as f32;
+    let camera = Camera::new(aspect_ratio);
+    let cube = Cube::new(preferred_format, &iad.device, &iad.queue, &camera.view);
     let mut game = Game {
         iad,
         background_color,
         egui_renderer,
         cube,
+        camera,
     };
 
     let event_lambda = move |event, event_loop_window_target: &EventLoopWindowTarget<()>| {
@@ -120,9 +143,12 @@ fn process_event(
                 surface,
                 &game.iad.device,
                 preferred_format,
-                na::Vector2::new(new_size.width, new_size.height),
+                glam::UVec2::new(new_size.width, new_size.height),
                 wgpu::PresentMode::Fifo,
             );
+            let aspect_ratio = new_size.width as f32 / new_size.height as f32;
+            game.camera = Camera::new(aspect_ratio);
+            game.cube.update_camera(&game.iad.queue, &game.camera.view);
             // TODO: how to pass resize event to egui?
             window.request_redraw();
         }

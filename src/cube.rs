@@ -91,21 +91,17 @@ pub struct Cube {
 }
 
 impl Cube {
-    fn generate_matrix(aspect_ratio: f32) -> glam::Mat4 {
-        let projection = glam::Mat4::perspective_rh(consts::FRAC_PI_4, aspect_ratio, 1.0, 10.0);
-        let view = glam::Mat4::look_at_rh(
-            glam::Vec3::new(1.5f32, -5.0, 3.0),
-            glam::Vec3::ZERO,
-            glam::Vec3::Z,
-        );
-        projection * view
+    pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_view: &glam::Mat4) {
+        let mx_ref: &[f32; 16] = camera_view.as_ref();
+        queue.write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(mx_ref));
     }
 
-    fn optional_features() -> wgpu::Features {
-        wgpu::Features::POLYGON_MODE_LINE
-    }
-
-    pub fn new(format: wgpu::TextureFormat, device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+    pub fn new(
+        format: wgpu::TextureFormat,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        camera_view: &glam::Mat4,
+    ) -> Self {
         // Create the vertex and index buffers
         let vertex_size = mem::size_of::<Vertex>();
         let (vertex_data, index_data) = create_vertices();
@@ -186,8 +182,7 @@ impl Cube {
 
         // Create other resources
         let aspect_ratio = 1.0;
-        let mx_total = Self::generate_matrix(aspect_ratio);
-        let mx_ref: &[f32; 16] = mx_total.as_ref();
+        let mx_ref: &[f32; 16] = camera_view.as_ref();
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),
             contents: bytemuck::cast_slice(mx_ref),
@@ -263,21 +258,6 @@ impl Cube {
             uniform_buf,
             pipeline,
         }
-    }
-
-    fn update(&mut self, _event: winit::event::WindowEvent) {
-        //empty
-    }
-
-    fn resize(
-        &mut self,
-        config: &wgpu::SurfaceConfiguration,
-        _device: &wgpu::Device,
-        queue: &wgpu::Queue,
-    ) {
-        let mx_total = Self::generate_matrix(config.width as f32 / config.height as f32);
-        let mx_ref: &[f32; 16] = mx_total.as_ref();
-        queue.write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(mx_ref));
     }
 
     pub fn render<'rpass>(&'rpass mut self, rpass: &mut wgpu::RenderPass<'rpass>) {
