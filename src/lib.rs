@@ -9,7 +9,8 @@ use winit::{
 };
 
 use discipline::{
-    glam, setup,
+    glam::{self, Mat4, Vec3},
+    setup,
     wgpu::{self, util::DeviceExt},
 };
 
@@ -34,21 +35,47 @@ struct Game {
     camera: Camera,
 }
 
+/// Also known as "Orthographic". "God view" of the scene.
+///
+struct IsometricCamera {
+    //
+}
+
 struct Camera {
     view: glam::Mat4,
 }
 
 impl Camera {
     fn new(aspect_ratio: f32) -> Self {
-        let projection =
-            glam::Mat4::perspective_rh(std::f32::consts::FRAC_PI_4, aspect_ratio, 1.0, 10.0);
-        let view = glam::Mat4::look_at_rh(
-            glam::Vec3::new(1.5f32, -5.0, 3.0),
-            glam::Vec3::ZERO,
-            glam::Vec3::Z,
-        );
+        let projection = Mat4::perspective_rh(std::f32::consts::FRAC_PI_4, aspect_ratio, 1.0, 10.0);
+
+        // let view = Self::view_from_eye_and_point();
+        let view = Self::view_from_yaw_and_location();
+
         let view = projection * view;
         Self { view }
+    }
+
+    fn view_from_eye_and_point() -> Mat4 {
+        let eye = glam::Vec3::new(1.5, -5.0, 3.0);
+        let looking_at = glam::Vec3::ZERO;
+        let view = glam::Mat4::look_at_rh(eye, looking_at, glam::Vec3::Z);
+        view
+    }
+
+    fn view_from_yaw_and_location() -> Mat4 {
+        let yaw = -0.00000007;
+        let pitch = -1.3;
+        let roll = -0.3;
+
+        let euler = glam::EulerRot::YXZ;
+        let rotation = glam::Quat::from_euler(euler, yaw, pitch, roll);
+        let translation = Vec3::new(0.0, 0.0, 6.0);
+        let scale = Vec3::ONE;
+
+        let view = Mat4::from_scale_rotation_translation(scale, rotation, -translation);
+
+        view
     }
 }
 
@@ -248,9 +275,9 @@ fn redraw_ui(window: &Window, game: &mut Game, frame: &mut Frame) {
             .vscroll(true)
             .default_open(true)
             .show(&cx, |mut ui| {
-                ui.label("Window!");
-                if ui.button("Click me!").clicked() {
-                    log::info!("button clicked");
+                // let available_width = ui.available_width();
+                if ui.button("Reset camera").clicked() {
+                    log::info!("resetting camera")
                 }
 
                 ui.horizontal(|ui| {

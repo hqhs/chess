@@ -1,7 +1,10 @@
 use std::{borrow::Cow, f32::consts, mem};
 
 use bytemuck::{Pod, Zeroable};
-use discipline::wgpu::{self, util::DeviceExt};
+use discipline::{
+    glam,
+    wgpu::{self, util::DeviceExt},
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]

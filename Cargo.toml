@@ -34,12 +34,10 @@ egui-wgpu = "0.26.2"
 egui-winit = "0.26.2"
 bytemuck = "1.14.3"
 
-# debug
-glam = { version = "0.25.0", features = ["bytemuck"] }
-
 [dev-dependencies]
 # rend3-test = "^0.3.0"
 tokio = "1"
+glam = { version = "0.25.0", features = ["bytemuck", "glam-assert"]}
 
 [package.metadata.android]
 build_targets = ["aarch64-linux-android"]
