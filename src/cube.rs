@@ -101,14 +101,12 @@ pub struct Cube {
     bind_group: wgpu::BindGroup,
     uniform_buf: wgpu::Buffer,
     pipeline: wgpu::RenderPipeline,
-    // TODO: next thing: make cube scallable
 }
 
-const SCALE: f32 = 0.1;
+const SCALE: f32 = 0.25;
 
 impl Cube {
     pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_view: Mat4) {
-        let mx_ref: &[f32; 16] = camera_view.as_ref();
         let _padding = Vec3::ZERO;
         let scale = Vec3::ONE * SCALE;
         let scale = Mat4::from_scale(scale);
@@ -148,7 +146,7 @@ impl Cube {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None, // wgpu::BufferSize::new(64), // FIXME: how to properly calculate size?..
+                        min_binding_size: None, // wgpu::BufferSize::new(128), // FIXME: how to properly calculate size?..
                     },
                     count: None,
                 },
@@ -201,7 +199,6 @@ impl Cube {
         );
 
         // Create other resources
-        let mx_ref: &[f32; 16] = camera_view.as_ref();
         let _padding = Vec3::ZERO;
         let scale = Vec3::ONE * SCALE;
         let scale = Mat4::from_scale(scale);
@@ -233,22 +230,19 @@ impl Cube {
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("cube.wgsl"))),
         });
 
+        let attributes = &wgpu::vertex_attr_array![
+            0 => Float32x4,
+            1 => Float32x2,
+        ];
+
         let vertex_buffers = [wgpu::VertexBufferLayout {
             array_stride: vertex_size as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x4,
-                    offset: 0,
-                    shader_location: 0,
-                },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x2,
-                    offset: 4 * 4,
-                    shader_location: 1,
-                },
-            ],
+            attributes,
         }];
+
+        // let mut color_target_state: wgpu::ColorTargetState = format.into();
+        // color_target_state.blend = Some(wgpu::BlendState::ALPHA_BLENDING);
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -284,13 +278,13 @@ impl Cube {
     }
 
     pub fn render<'rpass>(&'rpass mut self, rpass: &mut wgpu::RenderPass<'rpass>) {
-        rpass.push_debug_group("Prepare data for draw.");
+        rpass.push_debug_group("Cube rendering");
         rpass.set_pipeline(&self.pipeline);
         rpass.set_bind_group(0, &self.bind_group, &[]);
         rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
         rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
-        rpass.pop_debug_group();
-        rpass.insert_debug_marker("Draw!");
         rpass.draw_indexed(0..self.index_count as u32, 0, 0..1);
+
+        rpass.pop_debug_group();
     }
 }

@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use ui::EguiRenderer;
 use winit::{
-    event::{Event, WindowEvent},
+    event::{Event, KeyEvent, WindowEvent},
     event_loop::EventLoopWindowTarget,
+    keyboard::PhysicalKey,
     window::Window,
 };
 
@@ -19,42 +20,75 @@ mod grid;
 mod ui;
 
 use cube::Cube;
-
-pub fn log_iad_info(iad: &discipline::InstanceAdapterDevice) {
-    // let info = iad.adapter.get_info();
-    // let limits = iad.adapter.limits();
-    // let features = iad.adapter.features();
-    // log::debug!("Chosen adapter: {:#?}", adapter.i)
-}
+use grid::Grid;
 
 struct Game {
     iad: discipline::InstanceAdapterDevice,
     egui_renderer: ui::EguiRenderer,
 
     background_color: [f32; 4],
-    cube: Cube,
     camera: Camera,
+    cube: Cube,
+    debug_grid: Grid,
 }
 
+#[derive(Debug)]
 struct Camera {
     view: Mat4,
+    flying: camera::Flying,
+    // conrtols
+    speed: f32,
+
+    // settings
+    aspect_ratio: f32,
+    projection: Mat4,
+    perspective: camera::Projection,
 }
 
 impl Camera {
     fn new(aspect_ratio: f32) -> Self {
-        // let projection = Mat4::perspective_rh(std::f32::consts::FRAC_PI_4, aspect_ratio, 1.0, 10.0);
-        let projection = camera::Projection::InfinitePerspective {
+        let perspective = camera::Projection::InfinitePerspective {
             vfov: 45.0,
             near: 0.1,
         };
-        let projection = projection.compute_matrix(aspect_ratio);
+        let projection = perspective.compute_matrix(aspect_ratio);
+
+        let yaw = -0.001;
+        let pitch = -1.3;
+        let roll = -0.3;
+        let translation = -Vec3::new(0.0, 0.0, 6.0);
+        let scale = Vec3::ONE;
+
+        let flying = camera::Flying {
+            yaw,
+            pitch,
+            roll,
+            translation,
+            scale,
+        };
 
         // let view = Self::view_from_eye_and_point();
-        // let view = Self::view_from_yaw_and_location();
-        let view = Self::isometric_view();
+        // let view = Self::isometric_view();
+        let speed = 0.1;
+        let view = projection * flying.view();
+        Self {
+            view,
+            flying,
+            speed,
+            aspect_ratio,
+            projection,
+            perspective,
+        }
+    }
 
-        let view = projection * view;
-        Self { view }
+    fn update_projection(&mut self, aspect_ratio: f32) {
+        self.aspect_ratio = aspect_ratio;
+        self.projection = self.perspective.compute_matrix(self.aspect_ratio);
+        self.update_view();
+    }
+
+    fn update_view(&mut self) {
+        self.view = self.projection * self.flying.view();
     }
 
     fn view_from_eye_and_point() -> Mat4 {
@@ -70,23 +104,6 @@ impl Camera {
         camera::Isometric {
             looking_at: Vec3::ZERO,
             distance: 5.0,
-        }
-        .view()
-    }
-
-    fn view_from_yaw_and_location() -> Mat4 {
-        let yaw = -0.00000007;
-        let pitch = -1.3;
-        let roll = -0.3;
-        let translation = -Vec3::new(0.0, 0.0, 6.0);
-        let scale = Vec3::ONE;
-
-        camera::Flying {
-            yaw,
-            pitch,
-            roll,
-            translation,
-            scale,
         }
         .view()
     }
@@ -108,6 +125,8 @@ pub async fn run() -> anyhow::Result<()> {
     let caps = surface.get_capabilities(&iad.adapter);
     let preferred_format = caps.formats[0];
 
+    log::info!("preferred surface texture format: {:#?}", preferred_format);
+
     let size_vec = glam::UVec2::new(size.width, size.height);
     setup::configure_surface(
         &surface,
@@ -123,12 +142,14 @@ pub async fn run() -> anyhow::Result<()> {
     let aspect_ratio = size_vec.x as f32 / size_vec.y as f32;
     let camera = Camera::new(aspect_ratio);
     let cube = Cube::new(preferred_format, &iad.device, &iad.queue, camera.view);
+    let debug_grid = Grid::new(preferred_format, &iad.device, &iad.queue, camera.view);
     let mut game = Game {
         iad,
         background_color,
         egui_renderer,
-        cube,
         camera,
+        cube,
+        debug_grid,
     };
 
     let event_lambda = move |event, event_loop_window_target: &EventLoopWindowTarget<()>| {
@@ -187,8 +208,10 @@ fn process_event(
                 wgpu::PresentMode::Fifo,
             );
             let aspect_ratio = new_size.width as f32 / new_size.height as f32;
-            game.camera = Camera::new(aspect_ratio);
+            game.camera.update_projection(aspect_ratio);
             game.cube.update_camera(&game.iad.queue, game.camera.view);
+            game.debug_grid
+                .update_camera(&game.iad.queue, game.camera.view);
             // TODO: how to pass resize event to egui?
             window.request_redraw();
         }
@@ -229,9 +252,77 @@ fn process_event(
             game.iad.queue.submit(Some(encoder.finish()));
             surface_texture.present();
         }
+        Event::WindowEvent {
+            event: WindowEvent::KeyboardInput { event, .. },
+            ..
+        } => {
+            let result = maybe_move_camera(&mut game.camera, event);
+            if matches!(result, EventResult::Ignored) {
+                return Ok(());
+            }
+
+            game.camera.update_view();
+            game.cube.update_camera(&game.iad.queue, game.camera.view);
+            game.debug_grid
+                .update_camera(&game.iad.queue, game.camera.view);
+
+            window.request_redraw();
+        }
         _ => {}
     };
     Ok(())
+}
+
+enum EventResult {
+    Ignored,
+    Redraw,
+}
+
+fn maybe_move_camera(camera: &mut Camera, key: KeyEvent) -> EventResult {
+    let KeyEvent {
+        state,
+        physical_key,
+        ..
+    } = key;
+
+    if matches!(state, winit::event::ElementState::Released) {
+        return EventResult::Ignored;
+    }
+
+    use winit::keyboard::{KeyCode, PhysicalKey};
+
+    log::info!("physical key pressed: {:#?}", physical_key);
+
+    let code = match physical_key {
+        PhysicalKey::Code(code) => code,
+        PhysicalKey::Unidentified(_) => {
+            return EventResult::Ignored;
+        }
+    };
+    match code {
+        KeyCode::ArrowUp => {
+            camera.flying.translation.y += camera.speed;
+        }
+        KeyCode::ArrowDown => {
+            camera.flying.translation.y -= camera.speed;
+        }
+        KeyCode::ArrowLeft => {
+            camera.flying.translation.x += camera.speed;
+        }
+        KeyCode::ArrowRight => {
+            camera.flying.translation.x -= camera.speed;
+        }
+        KeyCode::Space => {
+            camera.flying.translation.z += camera.speed;
+        }
+        KeyCode::ShiftRight => {
+            camera.flying.translation.z -= camera.speed;
+        }
+        _ => {
+            return EventResult::Ignored;
+        }
+    };
+    EventResult::Redraw
 }
 
 fn redraw(game: &mut Game, frame: &mut Frame) {
@@ -262,6 +353,7 @@ fn redraw(game: &mut Game, frame: &mut Frame) {
         occlusion_query_set: None,
     });
 
+    game.debug_grid.render(&mut rpass);
     game.cube.render(&mut rpass);
 
     // next thing:
@@ -290,7 +382,12 @@ fn redraw_ui(window: &Window, game: &mut Game, frame: &mut Frame) {
             .show(cx, |mut ui| {
                 // let available_width = ui.available_width();
                 if ui.button("Reset camera").clicked() {
-                    log::info!("resetting camera")
+                    log::info!("resetting camera");
+                    let aspect_ratio = 1.0;
+                    game.camera = Camera::new(aspect_ratio);
+                    game.cube.update_camera(&game.iad.queue, game.camera.view);
+                    game.debug_grid
+                        .update_camera(&game.iad.queue, game.camera.view);
                 }
 
                 ui.horizontal(|ui| {
