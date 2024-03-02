@@ -184,7 +184,6 @@ impl Cube {
         );
 
         // Create other resources
-        let aspect_ratio = 1.0;
         let mx_ref: &[f32; 16] = camera_view.as_ref();
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),

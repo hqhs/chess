@@ -43,7 +43,7 @@ impl EguiRenderer {
     }
 
     pub fn handle_input(&mut self, window: &Window, event: &WindowEvent) -> EventResponse {
-        self.state.on_window_event(window, &event)
+        self.state.on_window_event(window, event)
     }
 
     pub fn draw(
@@ -57,25 +57,25 @@ impl EguiRenderer {
         run_ui: impl FnOnce(&Context),
     ) {
         // self.state.set_pixels_per_point(window.scale_factor() as f32);
-        let raw_input = self.state.take_egui_input(&window);
+        let raw_input = self.state.take_egui_input(window);
         let full_output = self.context.run(raw_input, |ui| {
             run_ui(&self.context);
         });
 
         self.state
-            .handle_platform_output(&window, full_output.platform_output);
+            .handle_platform_output(window, full_output.platform_output);
 
         let scale_factor = window.scale_factor() as f32;
         let tris = self.context.tessellate(full_output.shapes, scale_factor);
         for (id, image_delta) in &full_output.textures_delta.set {
             self.renderer
-                .update_texture(&device, &queue, *id, &image_delta);
+                .update_texture(device, queue, *id, image_delta);
         }
         self.renderer
-            .update_buffers(&device, &queue, encoder, &tris, &screen_descriptor);
+            .update_buffers(device, queue, encoder, &tris, &screen_descriptor);
         let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &window_surface_view,
+                view: window_surface_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,

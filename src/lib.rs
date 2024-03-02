@@ -9,7 +9,8 @@ use winit::{
 };
 
 use discipline::{
-    glam::{self, Mat4, Vec3},
+    camera::{self, Camera as _},
+    glam::{self, Mat4, Quat, Vec3},
     setup,
     wgpu::{self, util::DeviceExt},
 };
@@ -35,14 +36,8 @@ struct Game {
     camera: Camera,
 }
 
-/// Also known as "Orthographic". "God view" of the scene.
-///
-struct IsometricCamera {
-    //
-}
-
 struct Camera {
-    view: glam::Mat4,
+    view: Mat4,
 }
 
 impl Camera {
@@ -50,32 +45,45 @@ impl Camera {
         let projection = Mat4::perspective_rh(std::f32::consts::FRAC_PI_4, aspect_ratio, 1.0, 10.0);
 
         // let view = Self::view_from_eye_and_point();
-        let view = Self::view_from_yaw_and_location();
+        // let view = Self::view_from_yaw_and_location();
+        let view = Self::isometric_view();
 
         let view = projection * view;
         Self { view }
     }
 
     fn view_from_eye_and_point() -> Mat4 {
-        let eye = glam::Vec3::new(1.5, -5.0, 3.0);
-        let looking_at = glam::Vec3::ZERO;
-        let view = glam::Mat4::look_at_rh(eye, looking_at, glam::Vec3::Z);
-        view
+        camera::Pointed {
+            eye: Vec3::new(1.5, -5.0, 3.0),
+            looking_at: Vec3::ZERO,
+            top: Vec3::Z,
+        }
+        .view()
+    }
+
+    fn isometric_view() -> Mat4 {
+        camera::Isometric {
+            looking_at: Vec3::ZERO,
+            distance: 5.0,
+        }
+        .view()
     }
 
     fn view_from_yaw_and_location() -> Mat4 {
         let yaw = -0.00000007;
         let pitch = -1.3;
         let roll = -0.3;
-
-        let euler = glam::EulerRot::YXZ;
-        let rotation = glam::Quat::from_euler(euler, yaw, pitch, roll);
-        let translation = Vec3::new(0.0, 0.0, 6.0);
+        let translation = -Vec3::new(0.0, 0.0, 6.0);
         let scale = Vec3::ONE;
 
-        let view = Mat4::from_scale_rotation_translation(scale, rotation, -translation);
-
-        view
+        camera::Flying {
+            yaw,
+            pitch,
+            roll,
+            translation,
+            scale,
+        }
+        .view()
     }
 }
 
@@ -237,7 +245,7 @@ fn redraw(game: &mut Game, frame: &mut Frame) {
     let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: &view,
+            view: view,
             resolve_target: None,
             ops: wgpu::Operations {
                 load: wgpu::LoadOp::Clear(bg),
@@ -274,7 +282,7 @@ fn redraw_ui(window: &Window, game: &mut Game, frame: &mut Frame) {
             .resizable(true)
             .vscroll(true)
             .default_open(true)
-            .show(&cx, |mut ui| {
+            .show(cx, |mut ui| {
                 // let available_width = ui.available_width();
                 if ui.button("Reset camera").clicked() {
                     log::info!("resetting camera")
@@ -315,8 +323,8 @@ fn redraw_ui(window: &Window, game: &mut Game, frame: &mut Frame) {
         &game.iad.device,
         &game.iad.queue,
         &mut frame.encoder,
-        &window,
-        &view,
+        window,
+        view,
         screen_descriptor,
         egui_lambda,
     );
@@ -324,54 +332,4 @@ fn redraw_ui(window: &Window, game: &mut Game, frame: &mut Frame) {
 
 fn ced(label: Option<&'static str>) -> wgpu::CommandEncoderDescriptor {
     wgpu::CommandEncoderDescriptor { label }
-}
-
-fn vertex(pos: [f32; 3]) -> [f32; 4] {
-    [pos[0], pos[1], pos[2], 1.0]
-}
-
-fn create_mesh() -> ([[f32; 4]; 24], [u32; 36]) {
-    let vertex_positions = [
-        // far side (0.0, 0.0, 1.0)
-        vertex([-1.0, -1.0, 1.0]),
-        vertex([1.0, -1.0, 1.0]),
-        vertex([1.0, 1.0, 1.0]),
-        vertex([-1.0, 1.0, 1.0]),
-        // near side (0.0, 0.0, -1.0)
-        vertex([-1.0, 1.0, -1.0]),
-        vertex([1.0, 1.0, -1.0]),
-        vertex([1.0, -1.0, -1.0]),
-        vertex([-1.0, -1.0, -1.0]),
-        // right side (1.0, 0.0, 0.0)
-        vertex([1.0, -1.0, -1.0]),
-        vertex([1.0, 1.0, -1.0]),
-        vertex([1.0, 1.0, 1.0]),
-        vertex([1.0, -1.0, 1.0]),
-        // left side (-1.0, 0.0, 0.0)
-        vertex([-1.0, -1.0, 1.0]),
-        vertex([-1.0, 1.0, 1.0]),
-        vertex([-1.0, 1.0, -1.0]),
-        vertex([-1.0, -1.0, -1.0]),
-        // top (0.0, 1.0, 0.0)
-        vertex([1.0, 1.0, -1.0]),
-        vertex([-1.0, 1.0, -1.0]),
-        vertex([-1.0, 1.0, 1.0]),
-        vertex([1.0, 1.0, 1.0]),
-        // bottom (0.0, -1.0, 0.0)
-        vertex([1.0, -1.0, 1.0]),
-        vertex([-1.0, -1.0, 1.0]),
-        vertex([-1.0, -1.0, -1.0]),
-        vertex([1.0, -1.0, -1.0]),
-    ];
-
-    let index_data = [
-        0, 1, 2, 2, 3, 0, // far
-        4, 5, 6, 6, 7, 4, // bottom
-        8, 9, 10, 10, 11, 8, // right
-        12, 13, 14, 14, 15, 12, // left
-        16, 17, 18, 18, 19, 16, // top
-        20, 21, 22, 22, 23, 20, // bottom
-    ];
-
-    (vertex_positions, index_data)
 }
