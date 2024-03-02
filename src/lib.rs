@@ -1,4 +1,3 @@
-use std::mem;
 use std::sync::Arc;
 
 use ui::EguiRenderer;
@@ -16,6 +15,7 @@ use discipline::{
 };
 
 mod cube;
+mod grid;
 mod ui;
 
 use cube::Cube;
@@ -42,7 +42,12 @@ struct Camera {
 
 impl Camera {
     fn new(aspect_ratio: f32) -> Self {
-        let projection = Mat4::perspective_rh(std::f32::consts::FRAC_PI_4, aspect_ratio, 1.0, 10.0);
+        // let projection = Mat4::perspective_rh(std::f32::consts::FRAC_PI_4, aspect_ratio, 1.0, 10.0);
+        let projection = camera::Projection::InfinitePerspective {
+            vfov: 45.0,
+            near: 0.1,
+        };
+        let projection = projection.compute_matrix(aspect_ratio);
 
         // let view = Self::view_from_eye_and_point();
         // let view = Self::view_from_yaw_and_location();
@@ -117,7 +122,7 @@ pub async fn run() -> anyhow::Result<()> {
     let background_color = [0.1, 0.2, 0.3, 1.0];
     let aspect_ratio = size_vec.x as f32 / size_vec.y as f32;
     let camera = Camera::new(aspect_ratio);
-    let cube = Cube::new(preferred_format, &iad.device, &iad.queue, &camera.view);
+    let cube = Cube::new(preferred_format, &iad.device, &iad.queue, camera.view);
     let mut game = Game {
         iad,
         background_color,
@@ -183,7 +188,7 @@ fn process_event(
             );
             let aspect_ratio = new_size.width as f32 / new_size.height as f32;
             game.camera = Camera::new(aspect_ratio);
-            game.cube.update_camera(&game.iad.queue, &game.camera.view);
+            game.cube.update_camera(&game.iad.queue, game.camera.view);
             // TODO: how to pass resize event to egui?
             window.request_redraw();
         }

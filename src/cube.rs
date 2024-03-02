@@ -1,8 +1,8 @@
-use std::{borrow::Cow, f32::consts, mem};
+use std::{borrow::Cow, mem};
 
 use bytemuck::{Pod, Zeroable};
 use discipline::{
-    glam,
+    glam::{self, Mat4, Vec3},
     wgpu::{self, util::DeviceExt},
 };
 
@@ -84,6 +84,16 @@ fn create_texels(size: usize) -> Vec<u8> {
         .collect()
 }
 
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct ShaderUniformInput {
+    camera_view: Mat4,
+    scale: Mat4,
+    // NOTE: according to wgsl memory layout
+    // https://sotrh.github.io/learn-wgpu/showcase/alignment/#alignment-of-uniform-and-storage-buffers
+    // memory layout should be aligned to 16
+}
+
 pub struct Cube {
     vertex_buf: wgpu::Buffer,
     index_buf: wgpu::Buffer,
@@ -91,19 +101,26 @@ pub struct Cube {
     bind_group: wgpu::BindGroup,
     uniform_buf: wgpu::Buffer,
     pipeline: wgpu::RenderPipeline,
+    // TODO: next thing: make cube scallable
 }
 
+const SCALE: f32 = 0.1;
+
 impl Cube {
-    pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_view: &glam::Mat4) {
+    pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_view: Mat4) {
         let mx_ref: &[f32; 16] = camera_view.as_ref();
-        queue.write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(mx_ref));
+        let _padding = Vec3::ZERO;
+        let scale = Vec3::ONE * SCALE;
+        let scale = Mat4::from_scale(scale);
+        let uniform_input = ShaderUniformInput { camera_view, scale };
+        queue.write_buffer(&self.uniform_buf, 0, &bytemuck::bytes_of(&uniform_input));
     }
 
     pub fn new(
         format: wgpu::TextureFormat,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        camera_view: &glam::Mat4,
+        camera_view: Mat4,
     ) -> Self {
         // Create the vertex and index buffers
         let vertex_size = mem::size_of::<Vertex>();
@@ -131,7 +148,7 @@ impl Cube {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(64),
+                        min_binding_size: None, // wgpu::BufferSize::new(64), // FIXME: how to properly calculate size?..
                     },
                     count: None,
                 },
@@ -185,9 +202,13 @@ impl Cube {
 
         // Create other resources
         let mx_ref: &[f32; 16] = camera_view.as_ref();
+        let _padding = Vec3::ZERO;
+        let scale = Vec3::ONE * SCALE;
+        let scale = Mat4::from_scale(scale);
+        let uniform_input = ShaderUniformInput { camera_view, scale };
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),
-            contents: bytemuck::cast_slice(mx_ref),
+            contents: &bytemuck::bytes_of(&uniform_input),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -209,7 +230,7 @@ impl Cube {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("cube.wgsl"))),
         });
 
         let vertex_buffers = [wgpu::VertexBufferLayout {
