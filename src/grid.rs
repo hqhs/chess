@@ -45,9 +45,10 @@ fn create_vertices() -> Vec<Vertex> {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct ShaderUniformInput {
-    camera_view: Mat4,
-    scale: Mat4,
+pub struct UniformInput {
+    pub projection: Mat4,
+    pub view: Mat4,
+    pub scale: Mat4,
 }
 
 pub struct Grid {
@@ -59,18 +60,15 @@ pub struct Grid {
 }
 
 impl Grid {
-    pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_view: Mat4) {
-        let scale = Vec3::ONE * 80.0;
-        let scale = Mat4::from_scale(scale);
-        let uniform_input = ShaderUniformInput { camera_view, scale };
-        queue.write_buffer(&self.uniform_buf, 0, &bytemuck::bytes_of(&uniform_input));
+    pub fn write_uniform(&self, queue: &wgpu::Queue, input: &UniformInput) {
+        queue.write_buffer(&self.uniform_buf, 0, &bytemuck::bytes_of(input));
     }
 
     pub fn new(
         format: wgpu::TextureFormat,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        camera_view: Mat4,
+        uniform_input: &UniformInput,
     ) -> Self {
         let vertex_data = create_vertices();
         let num_vertices = vertex_data.len() as u32;
@@ -112,12 +110,9 @@ impl Grid {
             push_constant_ranges: &[],
         });
 
-        let scale = Vec3::ONE * 80.0;
-        let scale = Mat4::from_scale(scale);
-        let uniform_input = ShaderUniformInput { camera_view, scale };
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Debug grid uniform buffer"),
-            contents: &bytemuck::bytes_of(&uniform_input),
+            contents: &bytemuck::bytes_of(uniform_input),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 

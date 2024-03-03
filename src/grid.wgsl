@@ -1,21 +1,23 @@
 struct VertexOutput {
-  @location(0) tex_coord: vec2<f32>,
-  @builtin(position) position : vec4<f32>,
+  @location(0) tex_coord : vec2<f32>, @builtin(position) position : vec4<f32>,
 };
 
 struct UniformInput {
-  camera_transform : mat4x4<f32>,
-  scale: mat4x4<f32>,
+  projection: mat4x4<f32>,
+  view: mat4x4<f32>,
+  scale : mat4x4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> uniform_input : UniformInput;
 
-@vertex fn vs_main(
-    @location(0) position : vec4<f32>,
-    @location(1) tex_coord: vec2<f32>,
-)->VertexOutput {
+@vertex fn vs_main(@location(0) position
+                   : vec4<f32>, @location(1) tex_coord
+                   : vec2<f32>, )
+    ->VertexOutput {
   var result : VertexOutput;
-  result.position = uniform_input.camera_transform * uniform_input.scale * position;
+  let camera_transform = uniform_input.projection * uniform_input.view;
+
+  result.position = camera_transform * uniform_input.scale * position;
   result.tex_coord = tex_coord;
   return result;
 }
@@ -38,7 +40,6 @@ struct UniformInput {
     color.r = 1.0;
   }
 
-
-  // return vec4(0.2, 0.2, 0.2, 1.0);
+  // return vec4(0.2, 0.2, 0.2, 0.5);
   return color;
 }

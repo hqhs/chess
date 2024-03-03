@@ -105,7 +105,7 @@ pub struct Cube {
     pipeline: wgpu::RenderPipeline,
 }
 
-const SCALE: f32 = 0.25;
+const SCALE: f32 = 0.10;
 
 impl Cube {
     pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_view: Mat4) {

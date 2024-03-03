@@ -94,6 +94,14 @@ impl Camera {
         self.view = self.projection * self.flying.view();
     }
 
+    fn grid_input(&self, scale: f32) -> grid::UniformInput {
+        grid::UniformInput {
+            projection: self.projection,
+            view: self.flying.view(),
+            scale: Mat4::from_scale(Vec3::ONE * 80.0),
+        }
+    }
+
     fn view_from_eye_and_point() -> Mat4 {
         camera::Pointed {
             eye: Vec3::new(1.5, -5.0, 3.0),
@@ -146,7 +154,8 @@ pub async fn run() -> anyhow::Result<()> {
     let camera = Camera::new(aspect_ratio);
     let depth = depth::Depth::new(&iad.device, size_vec, "Depth texture label");
     let cube = Cube::new(preferred_format, &iad.device, &iad.queue, camera.view);
-    let debug_grid = Grid::new(preferred_format, &iad.device, &iad.queue, camera.view);
+    let grid_input = camera.grid_input(80.0);
+    let debug_grid = Grid::new(preferred_format, &iad.device, &iad.queue, &grid_input);
     let mut game = Game {
         iad,
         background_color,
@@ -216,9 +225,10 @@ fn process_event(
             game.depth = Depth::new(&game.iad.device, size, "Depth texture label");
             let aspect_ratio = new_size.width as f32 / new_size.height as f32;
             game.camera.update_projection(aspect_ratio);
+
+            let grid_input = game.camera.grid_input(80.0);
             game.cube.update_camera(&game.iad.queue, game.camera.view);
-            game.debug_grid
-                .update_camera(&game.iad.queue, game.camera.view);
+            game.debug_grid.write_uniform(&game.iad.queue, &grid_input);
             // TODO: how to pass resize event to egui?
             window.request_redraw();
         }
@@ -269,9 +279,10 @@ fn process_event(
             }
 
             game.camera.update_view();
+
+            let grid_input = game.camera.grid_input(80.0);
             game.cube.update_camera(&game.iad.queue, game.camera.view);
-            game.debug_grid
-                .update_camera(&game.iad.queue, game.camera.view);
+            game.debug_grid.write_uniform(&game.iad.queue, &grid_input);
 
             window.request_redraw();
         }
@@ -401,9 +412,10 @@ fn redraw_ui(window: &Window, game: &mut Game, frame: &mut Frame) {
                     log::info!("resetting camera");
                     let aspect_ratio = 1.0;
                     game.camera = Camera::new(aspect_ratio);
+
+                    let grid_input = game.camera.grid_input(80.0);
                     game.cube.update_camera(&game.iad.queue, game.camera.view);
-                    game.debug_grid
-                        .update_camera(&game.iad.queue, game.camera.view);
+                    game.debug_grid.write_uniform(&game.iad.queue, &grid_input);
                 }
 
                 ui.horizontal(|ui| {
