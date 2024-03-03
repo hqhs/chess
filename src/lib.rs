@@ -344,7 +344,7 @@ fn redraw(game: &mut Game, frame: &mut Frame) {
     };
 
     let depth_ops = Some(wgpu::Operations {
-        load: wgpu::LoadOp::Clear(0.0),
+        load: wgpu::LoadOp::Clear(1.0),
         store: wgpu::StoreOp::Store,
     });
 
@@ -367,9 +367,9 @@ fn redraw(game: &mut Game, frame: &mut Frame) {
         occlusion_query_set: None,
     });
 
-    game.cube.render(&mut rpass);
     // NOTE: grid should be rendered last
     // TODO: explain why
+    game.cube.render(&mut rpass);
     game.debug_grid.render(&mut rpass);
 
     // next thing:

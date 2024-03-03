@@ -10,8 +10,8 @@ pub fn depth_stencil_for_pipeline() -> Option<wgpu::DepthStencilState> {
     let state = wgpu::DepthStencilState {
         format: Depth::DEPTH_FORMAT,
         depth_write_enabled: true,
-        depth_compare: wgpu::CompareFunction::Greater, // 1.
-        stencil: wgpu::StencilState::default(),        // 2.
+        depth_compare: wgpu::CompareFunction::Less, // 1.
+        stencil: wgpu::StencilState::default(),     // 2.
         bias: wgpu::DepthBiasState::default(),
     };
     Some(state)
