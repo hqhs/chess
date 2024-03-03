@@ -328,10 +328,10 @@ fn maybe_move_camera(camera: &mut Camera, key: KeyEvent) -> EventResult {
         KeyCode::ArrowRight => {
             camera.flying.translation.x -= camera.speed;
         }
-        KeyCode::Space => {
+        KeyCode::Equal => {
             camera.flying.translation.z += camera.speed;
         }
-        KeyCode::ShiftRight => {
+        KeyCode::Minus => {
             camera.flying.translation.z -= camera.speed;
         }
         _ => {

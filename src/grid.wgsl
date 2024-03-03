@@ -1,5 +1,6 @@
 struct VertexOutput {
-  @location(0) tex_coord : vec2<f32>, @builtin(position) position : vec4<f32>,
+  @location(0) tex_coord : vec2<f32>,
+  @builtin(position) position : vec4<f32>,
 };
 
 struct UniformInput {
@@ -16,10 +17,18 @@ struct UniformInput {
     ->VertexOutput {
   var result : VertexOutput;
   let camera_transform = uniform_input.projection * uniform_input.view;
-
   result.position = camera_transform * uniform_input.scale * position;
   result.tex_coord = tex_coord;
   return result;
+}
+
+fn compute_linear_depth(pos: vec4<f32>) -> f32 {
+    var near = 0.1;
+    var far = 1.0;
+    var clip_space_pos = pos;
+    var clip_space_depth = (clip_space_pos.z / clip_space_pos.w) * 2.0 - 1.0; // put back between -1 and 1
+    var linearDepth = (2.0 * near * far) / (far + near - clip_space_depth * (far - near)); // get linear value between 0.01 and 100
+    return linearDepth / far; // normalize
 }
 
 @fragment fn fs_main(vertex : VertexOutput)->@location(0) vec4<f32> {
@@ -31,15 +40,7 @@ struct UniformInput {
   var minimumy = min(derivative.y, 1.0);
   var minimumx = min(derivative.x, 1.0);
   var color = vec4(0.4, 0.4, 0.4, 1.0 - min(line, 1.0));
-  if (vertex.position.x > -0.1 * minimumx &&
-      vertex.position.x < 0.1 * minimumx) {
-    color.z = 1.0;
-  }
-  if (vertex.position.y > -0.1 * minimumy &&
-      vertex.position.y < 0.1 * minimumy) {
-    color.r = 1.0;
-  }
-
-  // return vec4(0.2, 0.2, 0.2, 0.5);
+  // https://gamedev.stackexchange.com/questions/93055/getting-the-real-fragment-depth-in-glsl
+  color.a /= vertex.position.z / vertex.position.w;
   return color;
 }
