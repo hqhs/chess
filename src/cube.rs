@@ -6,6 +6,8 @@ use discipline::{
     wgpu::{self, util::DeviceExt},
 };
 
+use crate::depth::depth_stencil_for_pipeline;
+
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Vertex {
@@ -244,6 +246,8 @@ impl Cube {
         // let mut color_target_state: wgpu::ColorTargetState = format.into();
         // color_target_state.blend = Some(wgpu::BlendState::ALPHA_BLENDING);
 
+        // TODO: pass from the arguments maybe?
+        let depth_stencil = depth_stencil_for_pipeline();
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
@@ -261,7 +265,7 @@ impl Cube {
                 cull_mode: Some(wgpu::Face::Back),
                 ..Default::default()
             },
-            depth_stencil: None,
+            depth_stencil,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });

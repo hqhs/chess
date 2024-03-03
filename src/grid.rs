@@ -8,6 +8,8 @@ use discipline::{
     wgpu::{self, util::DeviceExt},
 };
 
+use crate::depth::depth_stencil_for_pipeline;
+
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Vertex {
@@ -122,6 +124,9 @@ impl Grid {
         let mut color_target_state: wgpu::ColorTargetState = format.into();
         color_target_state.blend = Some(wgpu::BlendState::ALPHA_BLENDING);
 
+        // TODO: pass from the arguments maybe?
+        let mut depth_stencil = depth_stencil_for_pipeline();
+        depth_stencil.as_mut().unwrap().depth_write_enabled = false;
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Debug grid render pipeline"),
             layout: Some(&pipeline_layout),
@@ -140,7 +145,7 @@ impl Grid {
                 cull_mode: Some(wgpu::Face::Back),
                 ..Default::default()
             },
-            depth_stencil: None,
+            depth_stencil,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });

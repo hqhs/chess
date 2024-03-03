@@ -16,10 +16,12 @@ use discipline::{
 };
 
 mod cube;
+mod depth;
 mod grid;
 mod ui;
 
 use cube::Cube;
+use depth::Depth;
 use grid::Grid;
 
 struct Game {
@@ -30,6 +32,7 @@ struct Game {
     camera: Camera,
     cube: Cube,
     debug_grid: Grid,
+    depth: Depth,
 }
 
 #[derive(Debug)]
@@ -141,6 +144,7 @@ pub async fn run() -> anyhow::Result<()> {
     let background_color = [0.1, 0.2, 0.3, 1.0];
     let aspect_ratio = size_vec.x as f32 / size_vec.y as f32;
     let camera = Camera::new(aspect_ratio);
+    let depth = depth::Depth::new(&iad.device, size_vec, "Depth texture label");
     let cube = Cube::new(preferred_format, &iad.device, &iad.queue, camera.view);
     let debug_grid = Grid::new(preferred_format, &iad.device, &iad.queue, camera.view);
     let mut game = Game {
@@ -150,6 +154,7 @@ pub async fn run() -> anyhow::Result<()> {
         camera,
         cube,
         debug_grid,
+        depth,
     };
 
     let event_lambda = move |event, event_loop_window_target: &EventLoopWindowTarget<()>| {
@@ -200,13 +205,15 @@ fn process_event(
         } => {
             let caps = surface.get_capabilities(&game.iad.adapter);
             let preferred_format = caps.formats[0];
+            let size = glam::UVec2::new(new_size.width, new_size.height);
             setup::configure_surface(
                 surface,
                 &game.iad.device,
                 preferred_format,
-                glam::UVec2::new(new_size.width, new_size.height),
+                size,
                 wgpu::PresentMode::Fifo,
             );
+            game.depth = Depth::new(&game.iad.device, size, "Depth texture label");
             let aspect_ratio = new_size.width as f32 / new_size.height as f32;
             game.camera.update_projection(aspect_ratio);
             game.cube.update_camera(&game.iad.queue, game.camera.view);
@@ -291,8 +298,6 @@ fn maybe_move_camera(camera: &mut Camera, key: KeyEvent) -> EventResult {
 
     use winit::keyboard::{KeyCode, PhysicalKey};
 
-    log::info!("physical key pressed: {:#?}", physical_key);
-
     let code = match physical_key {
         PhysicalKey::Code(code) => code,
         PhysicalKey::Unidentified(_) => {
@@ -348,13 +353,20 @@ fn redraw(game: &mut Game, frame: &mut Frame) {
                 store: wgpu::StoreOp::Store,
             },
         })],
-        depth_stencil_attachment: None,
+        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            view: &game.depth.view,
+            depth_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Clear(0.0),
+                store: wgpu::StoreOp::Store,
+            }),
+            stencil_ops: None,
+        }),
         timestamp_writes: None,
         occlusion_query_set: None,
     });
 
-    game.debug_grid.render(&mut rpass);
     game.cube.render(&mut rpass);
+    game.debug_grid.render(&mut rpass);
 
     // next thing:
     // set camera parameters
