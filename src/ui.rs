@@ -65,6 +65,8 @@ impl EguiRenderer {
         self.state
             .handle_platform_output(window, full_output.platform_output);
 
+        // BUG: typing '+' increases scale factor, which produces
+        // panic in the code below
         let scale_factor = window.scale_factor() as f32;
         let tris = self.context.tessellate(full_output.shapes, scale_factor);
         for (id, image_delta) in &full_output.textures_delta.set {

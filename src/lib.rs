@@ -343,6 +343,11 @@ fn redraw(game: &mut Game, frame: &mut Frame) {
         a: bg[3].into(),
     };
 
+    let depth_ops = Some(wgpu::Operations {
+        load: wgpu::LoadOp::Clear(0.0),
+        store: wgpu::StoreOp::Store,
+    });
+
     let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -355,10 +360,7 @@ fn redraw(game: &mut Game, frame: &mut Frame) {
         })],
         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
             view: &game.depth.view,
-            depth_ops: Some(wgpu::Operations {
-                load: wgpu::LoadOp::Clear(0.0),
-                store: wgpu::StoreOp::Store,
-            }),
+            depth_ops,
             stencil_ops: None,
         }),
         timestamp_writes: None,
@@ -409,9 +411,7 @@ fn redraw_ui(window: &Window, game: &mut Game, frame: &mut Frame) {
                     if ui
                         .color_edit_button_rgba_unmultiplied(&mut game.background_color)
                         .changed()
-                    {
-                        log::info!("background color changed");
-                    }
+                    {}
                 })
             });
 

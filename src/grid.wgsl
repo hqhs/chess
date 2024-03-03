@@ -5,6 +5,7 @@ struct VertexOutput {
 
 struct UniformInput {
   camera_transform : mat4x4<f32>,
+  scale: mat4x4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> uniform_input : UniformInput;
@@ -14,21 +15,20 @@ struct UniformInput {
     @location(1) tex_coord: vec2<f32>,
 )->VertexOutput {
   var result : VertexOutput;
-  // var scaled_position = position * uniform_input.scale;
-  result.position = uniform_input.camera_transform * position;
+  result.position = uniform_input.camera_transform * uniform_input.scale * position;
   result.tex_coord = tex_coord;
   return result;
 }
 
 @fragment fn fs_main(vertex : VertexOutput)->@location(0) vec4<f32> {
-  var scale : f32 = 50.0;
+  var scale : f32 = 640.0;
   var coord : vec2<f32> = vertex.tex_coord * scale;
   var derivative : vec2<f32> = fwidth(coord);
   var grid = abs(fract(coord - 0.5) - 0.5) / derivative;
   var line : f32 = min(grid.x, grid.y);
   var minimumy = min(derivative.y, 1.0);
   var minimumx = min(derivative.x, 1.0);
-  var color = vec4(0.2, 0.2, 0.2, 1.0 - min(line, 1.0));
+  var color = vec4(0.4, 0.4, 0.4, 1.0 - min(line, 1.0));
   if (vertex.position.x > -0.1 * minimumx &&
       vertex.position.x < 0.1 * minimumx) {
     color.z = 1.0;
@@ -38,7 +38,7 @@ struct UniformInput {
     color.r = 1.0;
   }
 
-  // return vec4(0.2, 0.2, 0.2, 0.5);
-  // return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+
+  // return vec4(0.2, 0.2, 0.2, 1.0);
   return color;
 }

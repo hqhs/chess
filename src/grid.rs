@@ -5,7 +5,7 @@ use std::{borrow::Cow, f32::consts, mem};
 
 use bytemuck::{Pod, Zeroable};
 use discipline::{
-    glam::{self, Mat4},
+    glam::{self, Mat4, Vec3},
     wgpu::{self, util::DeviceExt},
 };
 
@@ -26,10 +26,10 @@ fn vertex(pos: [f32; 3], tc: [f32; 2]) -> Vertex {
 }
 
 fn create_vertices() -> Vec<Vertex> {
-    let left_top = [0.0, 1.0];
-    let right_top = [1.0, 1.0];
-    let left_bottom = [0.0, 0.0];
-    let right_bottom = [1.0, 0.0];
+    let left_top = [0.0, 0.0];
+    let right_top = [1.0, 0.0];
+    let left_bottom = [0.0, 1.0];
+    let right_bottom = [1.0, 1.0];
 
     let vertex_data = [
         vertex([1.0, 1.0, 0.0], right_top),     // right
@@ -47,6 +47,7 @@ fn create_vertices() -> Vec<Vertex> {
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct ShaderUniformInput {
     camera_view: Mat4,
+    scale: Mat4,
 }
 
 pub struct Grid {
@@ -59,7 +60,9 @@ pub struct Grid {
 
 impl Grid {
     pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_view: Mat4) {
-        let uniform_input = ShaderUniformInput { camera_view };
+        let scale = Vec3::ONE * 80.0;
+        let scale = Mat4::from_scale(scale);
+        let uniform_input = ShaderUniformInput { camera_view, scale };
         queue.write_buffer(&self.uniform_buf, 0, &bytemuck::bytes_of(&uniform_input));
     }
 
@@ -109,7 +112,9 @@ impl Grid {
             push_constant_ranges: &[],
         });
 
-        let uniform_input = ShaderUniformInput { camera_view };
+        let scale = Vec3::ONE * 80.0;
+        let scale = Mat4::from_scale(scale);
+        let uniform_input = ShaderUniformInput { camera_view, scale };
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Debug grid uniform buffer"),
             contents: &bytemuck::bytes_of(&uniform_input),
@@ -147,11 +152,11 @@ impl Grid {
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
-                // TODO: next thing; opacity targets should be set here
                 targets: &[Some(color_target_state)],
             }),
             primitive: wgpu::PrimitiveState {
-                cull_mode: Some(wgpu::Face::Back),
+                // NOTE: grid is visible from both sides
+                cull_mode: None, // Some(wgpu::Face::Back),
                 ..Default::default()
             },
             depth_stencil,
