@@ -366,6 +366,8 @@ fn redraw(game: &mut Game, frame: &mut Frame) {
     });
 
     game.cube.render(&mut rpass);
+    // NOTE: grid should be rendered last
+    // TODO: explain why
     game.debug_grid.render(&mut rpass);
 
     // next thing:

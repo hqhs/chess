@@ -1,5 +1,6 @@
 /// Infinite debug grid,
-/// Algorithm descriptionhttps://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
+/// Algorithm description
+/// https://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
 use std::{borrow::Cow, f32::consts, mem};
 
 use bytemuck::{Pod, Zeroable};
@@ -14,23 +15,30 @@ use crate::depth::depth_stencil_for_pipeline;
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Vertex {
     _pos: [f32; 4],
+    _tex_coord: [f32; 2],
 }
 
-fn vertex(pos: [f32; 3]) -> Vertex {
+fn vertex(pos: [f32; 3], tc: [f32; 2]) -> Vertex {
     Vertex {
         _pos: [pos[0], pos[1], pos[2], 1.0],
+        _tex_coord: tc,
     }
 }
 
 fn create_vertices() -> Vec<Vertex> {
+    let left_top = [0.0, 1.0];
+    let right_top = [1.0, 1.0];
+    let left_bottom = [0.0, 0.0];
+    let right_bottom = [1.0, 0.0];
+
     let vertex_data = [
-        vertex([1.0, 1.0, 0.0]),   // right
-        vertex([-1.0, -1.0, 0.0]), // left
-        vertex([1.0, -1.0, 0.0]),  // middle below
+        vertex([1.0, 1.0, 0.0], right_top),     // right
+        vertex([-1.0, -1.0, 0.0], left_bottom), // left
+        vertex([1.0, -1.0, 0.0], right_bottom), // middle below
         //
-        vertex([1.0, 1.0, 0.0]),   // right
-        vertex([-1.0, 1.0, 0.0]),  // middle up
-        vertex([-1.0, -1.0, 0.0]), // left
+        vertex([1.0, 1.0, 0.0], right_top),     // right
+        vertex([-1.0, 1.0, 0.0], left_top),     // middle up
+        vertex([-1.0, -1.0, 0.0], left_bottom), // left
     ];
     vertex_data.to_vec()
 }
@@ -73,6 +81,7 @@ impl Grid {
         let vertex_size = mem::size_of::<Vertex>();
         let attributes = &wgpu::vertex_attr_array![
             0 => Float32x4,
+            1 => Float32x2,
         ];
         let vertex_buffers = [wgpu::VertexBufferLayout {
             array_stride: vertex_size as wgpu::BufferAddress,
