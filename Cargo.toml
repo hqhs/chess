@@ -11,7 +11,7 @@ name = "chess"
 path = "bin/game.rs"
 
 [dependencies.discipline]
-path = "../discipline/discipline"
+path = "../discipline/crates/discipline"
 
 [dependencies]
 env_logger = { version = "0.10", default-features = false, features = ["auto-color", "humantime"] }

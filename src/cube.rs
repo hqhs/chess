@@ -3,72 +3,28 @@ use std::{borrow::Cow, mem};
 use bytemuck::{Pod, Zeroable};
 use discipline::{
   glam::{self, Mat4, Vec3},
+  shapes::{Cuboid, Mesh, Meshable},
   wgpu::{self, util::DeviceExt},
 };
 
 use crate::depth::depth_stencil_for_pipeline;
 
 #[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
 struct Vertex {
-  _pos: [f32; 4],
+  _pos: [f32; 3],
+  _normal: [f32; 3],
   _tex_coord: [f32; 2],
 }
 
-fn vertex(
-  pos: [i8; 3],
-  tc: [i8; 2],
-) -> Vertex {
-  Vertex {
-    _pos: [pos[0] as f32, pos[1] as f32, pos[2] as f32, 1.0],
-    _tex_coord: [tc[0] as f32, tc[1] as f32],
+impl Vertex {
+  fn attributes() -> [wgpu::VertexAttribute; 3] {
+    wgpu::vertex_attr_array![
+        0 => Float32x3,
+        1 => Float32x3,
+        2 => Float32x2,
+    ]
   }
-}
-
-fn create_vertices() -> (Vec<Vertex>, Vec<u16>) {
-  let vertex_data = [
-    // top (0, 0, 1)
-    vertex([-1, -1, 1], [0, 0]),
-    vertex([1, -1, 1], [1, 0]),
-    vertex([1, 1, 1], [1, 1]),
-    vertex([-1, 1, 1], [0, 1]),
-    // bottom (0, 0, -1)
-    vertex([-1, 1, -1], [1, 0]),
-    vertex([1, 1, -1], [0, 0]),
-    vertex([1, -1, -1], [0, 1]),
-    vertex([-1, -1, -1], [1, 1]),
-    // right (1, 0, 0)
-    vertex([1, -1, -1], [0, 0]),
-    vertex([1, 1, -1], [1, 0]),
-    vertex([1, 1, 1], [1, 1]),
-    vertex([1, -1, 1], [0, 1]),
-    // left (-1, 0, 0)
-    vertex([-1, -1, 1], [1, 0]),
-    vertex([-1, 1, 1], [0, 0]),
-    vertex([-1, 1, -1], [0, 1]),
-    vertex([-1, -1, -1], [1, 1]),
-    // front (0, 1, 0)
-    vertex([1, 1, -1], [1, 0]),
-    vertex([-1, 1, -1], [0, 0]),
-    vertex([-1, 1, 1], [0, 1]),
-    vertex([1, 1, 1], [1, 1]),
-    // back (0, -1, 0)
-    vertex([1, -1, 1], [0, 0]),
-    vertex([-1, -1, 1], [1, 0]),
-    vertex([-1, -1, -1], [1, 1]),
-    vertex([1, -1, -1], [0, 1]),
-  ];
-
-  let index_data: &[u16] = &[
-    0, 1, 2, 2, 3, 0, // top
-    4, 5, 6, 6, 7, 4, // bottom
-    8, 9, 10, 10, 11, 8, // right
-    12, 13, 14, 14, 15, 12, // left
-    16, 17, 18, 18, 19, 16, // front
-    20, 21, 22, 22, 23, 20, // back
-  ];
-
-  (vertex_data.to_vec(), index_data.to_vec())
 }
 
 fn create_texels(size: usize) -> Vec<u8> {
@@ -108,7 +64,7 @@ pub struct Cube {
   pipeline: wgpu::RenderPipeline,
 }
 
-const SCALE: f32 = 0.10;
+const SCALE: f32 = 1.00;
 
 impl Cube {
   pub fn update_camera(
@@ -134,8 +90,20 @@ impl Cube {
     camera_view: Mat4,
   ) -> Self {
     // Create the vertex and index buffers
+    let Mesh { vertices, normals, uvs, indices } =
+      Cuboid::from_size(Vec3::ONE * 2.0).mesh();
+
+    let index_data = indices;
+    let mut zipped =
+      vertices.into_iter().zip(normals.into_iter()).zip(uvs.into_iter());
+    let mut vertices: Vec<Vertex> = Vec::with_capacity(24);
+
+    for ((_pos, _normal), _tex_coord) in zipped {
+      vertices.push(Vertex { _pos, _normal, _tex_coord });
+    }
+
     let vertex_size = mem::size_of::<Vertex>();
-    let (vertex_data, index_data) = create_vertices();
+    let vertex_data = &vertices;
 
     let vertex_buf =
       device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -249,10 +217,7 @@ impl Cube {
       ))),
     });
 
-    let attributes = &wgpu::vertex_attr_array![
-        0 => Float32x4,
-        1 => Float32x2,
-    ];
+    let attributes = &Vertex::attributes();
 
     let vertex_buffers = [wgpu::VertexBufferLayout {
       array_stride: vertex_size as wgpu::BufferAddress,
@@ -306,7 +271,7 @@ impl Cube {
     rpass.push_debug_group("Cube rendering");
     rpass.set_pipeline(&self.pipeline);
     rpass.set_bind_group(0, &self.bind_group, &[]);
-    rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
+    rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint32);
     rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
     rpass.draw_indexed(0..self.index_count as u32, 0, 0..1);
 

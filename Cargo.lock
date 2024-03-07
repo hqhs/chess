@@ -490,8 +490,42 @@ name = "discipline"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "discipline_anim",
+ "discipline_camera",
+ "discipline_graph",
+ "discipline_light",
+ "discipline_setup",
+ "discipline_shapes",
  "glam",
  "wgpu",
+]
+
+[[package]]
+name = "discipline_anim"
+version = "0.1.0"
+
+[[package]]
+name = "discipline_camera"
+version = "0.1.0"
+
+[[package]]
+name = "discipline_graph"
+version = "0.1.0"
+
+[[package]]
+name = "discipline_light"
+version = "0.1.0"
+
+[[package]]
+name = "discipline_setup"
+version = "0.1.0"
+
+[[package]]
+name = "discipline_shapes"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "thiserror",
 ]
 
 [[package]]
